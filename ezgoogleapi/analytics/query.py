@@ -1,3 +1,5 @@
+import json
+import pathlib
 import string
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -9,7 +11,8 @@ import pandas as pd
 import os
 from ezgoogleapi.analytics.variable_names import VariableName
 
-BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+BASE_DIR = os.getcwd()
+DIR = str(pathlib.Path(__file__).parent)
 SCOPES = ['https://www.googleapis.com/auth/analytics.readonly']
 
 
@@ -20,11 +23,11 @@ def initialize_analyticsreporting(keyfile) -> Any:
 
 
 class Query:
-    def __init__(self, body, keyfile):
+    def __init__(self, body, keyfile: str):
         '''
         Class to contain all bodies for a data range given a Body object.
 
-        :param body: Body object
+        :param body: ezgoogleapi.analytics.Body object
         :param keyfile: JSON keyfile name in the form "file_name.json".
         '''
         self.analytics = initialize_analyticsreporting(keyfile)
@@ -32,7 +35,7 @@ class Query:
         self.resource_quota = self.body.resource_quota
         self.date_range = calc_range(*body.date_range)
         self.name_client = VariableName()
-        self.sampling_report = []  # TODO: implement
+        self.sampling_report = []
         self.results = []
 
     def run_query(self, per_day=True, sampling='fail'):
@@ -46,15 +49,18 @@ class Query:
             Specify what to do when sampled results are encountered. Options: 'fail' (generate error), 'skip'
             (do not generate error), 'save' (save the record as normal, and include column with sample percentage).
         '''
+
         if per_day:
             for date in self.date_range:
                 body = self.body.body
                 body['reportRequests'][0]['dateRanges'] = [{'startDate': date, 'endDate': date}]
-                result = get_report(body, self.analytics, self.resource_quota, sampling)
+                result = get_report(json.dumps(body), self.analytics, self.resource_quota, sampling)
                 self.results.append(result)
                 conn = db.connect('partial_results.db')
                 df = pd.concat(self.results)
                 df.to_sql('results', con=conn, index=False, if_exists='append')
+                conn.close()
+            os.remove('partial_results.db')
 
         else:
             body = self.body.body
@@ -74,28 +80,31 @@ class Query:
 
         >> Query.to_csv('C:\\Users\\someusr\\Documents\\example.csv')
         '''
-
-        if not os.path.exists('Query results'):
-            os.mkdir('Query results')
+        if not os.path.isabs(path):
+            print(BASE_DIR)
+            print(__file__)
+            path = BASE_DIR + '\\' + path
         df = pd.concat(self.results)
         df.columns = self.name_client.get_names(list(df.columns.values), return_type='name')
         df.to_csv(path, index=False)
+        print(f'CSV created: {path}')
 
-    def to_sqlite(self, headers: list = None, name: str = None):
+    def to_sqlite(self, headers: list = None, db_name: str = None, table_name='results'):
         '''
         Save query results to a SQLite database. Headers containing Google Analytics API codes will be replaced by
-        their regular variable name.
+        their regular variable name. Any special characters or spaces will be replaced by an underscore.
 
+        :param table_name: [optional] Defaults to 'results'
         :param headers: [optional] Specify custom headers for the columns.
-        :param name: [optional] Specify a name for the database. If not specified, then the query name from the
-            Body object will be used.
+        :param db_name: [optional] Specify a name for the database. If not specified, then the query name from the
+            Body object will be used. If that also isn't specified, it will fall back to Query [num], depending on the
+            amount of Body instances. Ex. Query 0 for the first one.
         '''
         if not os.path.exists(f'{BASE_DIR}\\Query results'):
             os.mkdir(f'{BASE_DIR}\\Query results')
-        if not name:
-            conn = db.connect(f'{BASE_DIR}\\Query results\\' + self.body.name)
-        else:
-            conn = db.connect(f'{BASE_DIR}\\Query results\\' + name)
+        if not db_name:
+            db_name = self.body.name
+        conn = db.connect(f'{BASE_DIR}\\Query results\\' + db_name)
 
         df = pd.concat(self.results)
         if headers:
@@ -127,8 +136,10 @@ class Query:
 
         df.columns = clean_cols
 
-        df.to_sql('results', con=conn, index=False, if_exists='replace')
+        df.to_sql(table_name, con=conn, index=False, if_exists='replace')
         conn.close()
+        print(f'New SQLite DB created with path {BASE_DIR}\\Query results\\{db_name}.db, using \'{table_name}\' as '
+              f'the table name and {", ".join(clean_cols)} as columns.')
 
     def to_dataframe(self) -> pd.DataFrame:
         '''
@@ -140,9 +151,10 @@ class Query:
 
 
 @lru_cache
-def get_report(body, analytics, resource_quota, sampling) -> pd.DataFrame:
+def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -> pd.DataFrame:
     results = []
     page_token = True
+    body = json.loads(body)
     while page_token:
         response = analytics.reports().batchGet(body=body).execute()
         for k, v in response.items():
@@ -159,17 +171,24 @@ def get_report(body, analytics, resource_quota, sampling) -> pd.DataFrame:
                 if 'SamplingReadCounts' in report_data.keys():
                     sample_size = int(body['samplesReadCounts'][0]) / int(body['samplingSpaceSizes'][0])
                     if resource_quota and not 'useResourceQuotas' in list(body.keys()):
-                        body_rq = body['useResourceQuotas'] = True
-                        return get_report(body_rq, analytics, resource_quota, sampling)
+                        body['useResourceQuotas'] = True
+                        return get_report(json.dumps(body), analytics, resource_quota, sampling)
                     elif sampling == 'save':
                         df_sub['Sampling'] = sample_size
+                        date = body['reportRequests'][0]['dateRanges'][0]['startDate']
+                        percentage = round(sample_size * 100, 1)
+                        print(f'{date} contains sampled data: {percentage}%')
                     elif sampling == 'fail':
-                        conn = db.connect('partial_results.db')
-                        df = pd.read_sql('SELECT * FROM results')
-                        df.to_csv(BASE_DIR + '\\partial_results.csv', index=False)
-                        conn.close()
-                        os.remove('partial_results.db')
-                        raise SamplingError(sample_size)
+                        if os.path.exists(DIR + '\\partial_results.db'):
+                            conn = db.connect(DIR + '\\partial_results.db')
+                            df = pd.read_sql('SELECT * FROM results')
+                            df.to_csv(BASE_DIR + '\\partial_results.csv', index=False)
+                            conn.close()
+                            os.remove('partial_results.db')
+                            csv = True
+                        else:
+                            csv = False
+                        raise SamplingError(sample_size, csv)
                     else:
                         """skip"""
                         return pd.DataFrame()
@@ -199,11 +218,13 @@ def calc_range(start, end) -> List[str]:
 
 
 class SamplingError(Exception):
-    def __init__(self, percentage):
+    def __init__(self, percentage, csv):
         self.percentage = round(percentage * 100, 1)
+        csv_string = ''
+        if csv:
+            csv_string = f' and results untill now have been saved to {BASE_DIR + "/partial_results.csv"}'
         self.message = f'Sampling detected in results ({self.percentage}%) and sampling is set to "fail"\n. ' \
-                       f'Execution of queries is stopped and results untill now have been saved ' \
-                       f'to {BASE_DIR + "/partial_results.csv"}. If you want to continue when sampling is ' \
+                       f'Execution of queries is stopped{csv_string}. If you want to continue when sampling is ' \
                        f'encountered, then use the option sampling="skip" to only save results without sampling or ' \
                        f'sampling="save" to keep all the results.'
         super().__init__(self.message)

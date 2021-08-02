@@ -12,5 +12,5 @@ from ezgoogleapi.analytics.daterange import (TODAY,
                                              quarter,
                                              weeks)
 from ezgoogleapi.analytics.query import Query
-from ezgoogleapi.analytics.variable_names import VariableName
+from ezgoogleapi.analytics.variable_names import VariableName, NameDatabase
 
