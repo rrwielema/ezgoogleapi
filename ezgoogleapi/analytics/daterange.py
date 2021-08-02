@@ -106,11 +106,3 @@ def weeks(week: Union[int, tuple, list], year: int, first_day: str = 'mon') -> l
         date_range[1] = YESTERDAY[0]
 
     return date_range
-
-
-print(YESTERDAY)
-print(weeks([14, 23], 2021))
-print(quarter(1, 2011))
-print(CURRENT_QUARTER)
-print(LAST_MONTH)
-print(LAST_WEEK)

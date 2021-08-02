@@ -14,7 +14,8 @@ setup(
     install_requires=[
         'google>=3.0.0',
         'google-api-python-client>=2.14.1',
-        'pandas>=1.3.1'
+        'pandas>=1.3.1',
+        'google-cloud-bigquery>=2.23.1'
     ],
     packages=find_packages()
 )

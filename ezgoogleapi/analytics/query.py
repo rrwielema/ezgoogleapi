@@ -70,10 +70,11 @@ class Query:
 
         :param path: Relative or absolute path to the yet-to-be created CSV file.
 
-        >>> Query.to_csv('example.csv')
+        >> Query.to_csv('example.csv')
 
-        >>> Query.to_csv(r'C:\Users\someusr\Documents\example.csv')
+        >> Query.to_csv('C:\\Users\\someusr\\Documents\\example.csv')
         '''
+
         if not os.path.exists('Query results'):
             os.mkdir('Query results')
         df = pd.concat(self.results)
