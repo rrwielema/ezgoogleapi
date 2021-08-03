@@ -25,7 +25,7 @@ def initialize_analyticsreporting(keyfile) -> Any:
 class Query:
     def __init__(self, body, keyfile: str):
         '''
-        Class to contain all bodies for a data range given a Body object.
+        Class to run queries for a given Body object.
 
         :param body: ezgoogleapi.analytics.Body object
         :param keyfile: JSON keyfile name in the form "file_name.json".

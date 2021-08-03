@@ -33,15 +33,14 @@ class BodyObject:
         check_mandatory(self.input_fields)
         self.report = report
         self.view_id = report['view_id']
-        self.dimensions = report['dimensions']
-        self.metrics = report['metrics']
+        self.name_client = VariableName()
+        self.dimensions = self.name_client.get_names(report['dimensions'], return_type='apicode')
+        self.metrics = self.name_client.get_names(report['metrics'], return_type='apicode')
         self.date_range = get_date_range(self)
         self.resource_quota = False
         self.name = None
         self.body = None
-        self.name_client = VariableName()
         construct_body(self)
-        print(self.name)
 
     def __repr__(self):
         return f'{self.name}'
@@ -192,7 +191,7 @@ def add_ordering(self):
             sort_order = 'ASCENDING'
             var = var.replace('&&ASC', '')
         self.body['reportRequests'][0]['orderBys'].append({
-            'fieldName': var,
+            'fieldName': self.name_client.get_names(var, return_type='apicode')[0],
             'orderType': 'VALUE',
             'sortOrder': sort_order
         })
