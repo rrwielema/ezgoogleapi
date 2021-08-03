@@ -84,7 +84,8 @@ def construct_body(self):
 
     added_fields = [field for field in self.input_fields if field not in mandatory and field in fields]
     for field in added_fields:
-        fields[field](self)
+        if self.report[field]:
+            fields[field](self)
 
     if not self.name:
         self.name = 'Query ' + str(self.id)
