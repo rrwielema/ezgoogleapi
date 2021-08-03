@@ -5,10 +5,16 @@ from google.cloud import bigquery
 import os
 
 
+BASE_DIR = os.getcwd()
+
+
 class BigQuery:
     def __init__(self, keyfile):
+        if not os.path.isabs(keyfile):
+            keyfile = BASE_DIR + '\\' + keyfile
+        print(keyfile)
         self.keyfile = check_keyfile(keyfile)
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.dirname(os.path.realpath(__file__)) + '\\' + keyfile
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = keyfile
         self.client = bigquery.Client()
         self.table = None
         self.table_name = None
@@ -132,7 +138,7 @@ def check_keyfile(keyfile):
         raise IOError('Keyfile needs to be in .json format. Read more about the keyfile: '
                       'https://developers.google.com/identity/protocols/oauth2')
     try:
-        file = open(os.path.dirname(os.path.realpath(__file__)) + '\\' + keyfile, 'r')
+        file = open(keyfile, 'r')
     except FileNotFoundError:
         raise FileNotFoundError('Keyfile not found. Make sure it is located in the working directory and use only '
                                 '"file_name.json" to specify.')
