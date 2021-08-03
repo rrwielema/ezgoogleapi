@@ -81,8 +81,6 @@ class Query:
         >> Query.to_csv('C:\\Users\\someusr\\Documents\\example.csv')
         '''
         if not os.path.isabs(path):
-            print(BASE_DIR)
-            print(__file__)
             path = BASE_DIR + '\\' + path
         df = pd.concat(self.results)
         df.columns = self.name_client.get_names(list(df.columns.values), return_type='name')

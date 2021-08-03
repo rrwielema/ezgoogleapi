@@ -11,6 +11,7 @@ import pandas as pd
 from ezgoogleapi.bigquery.base import check_keyfile
 
 DIR = str(pathlib.Path(__file__).parent)
+BASE_DIR = os.getcwd()
 
 
 class VariableName:
@@ -123,13 +124,13 @@ class NameDatabase:
             raise UserWarning('Database already contains custom dimensions and/or custom metrics.\n'
                               'If you want to overwrite the current entries, you need to pass the parameter '
                               'overwrite=True.')
-        check_keyfile(keyfile)
+        check_keyfile(BASE_DIR + '\\' + keyfile)
         id_check = re.match(r'^UA-[0-9]{8}-[0-9]{1,2}$', property_id)
         if not id_check:
             raise ValueError(f'{property_id} is not a valid property ID in format UA-XXXXXXXX-X(X)')
 
         scopes = ['https://www.googleapis.com/auth/analytics.readonly']
-        credentials = Credentials.from_service_account_file(scopes=scopes)
+        credentials = Credentials.from_service_account_file(BASE_DIR + '\\' + keyfile, scopes=scopes)
         analytics = build('analytics', 'v3', credentials=credentials)
 
         dimensions = analytics.management().customDimensions().list(
@@ -155,6 +156,6 @@ class NameDatabase:
         if overwrite:
             NameDatabase.create_database()
 
-        conn = db.connect('google_api_variable_names.db')
+        conn = db.connect(f'{DIR}\\google_api_variable_names.db')
         df.to_sql('vars', conn, index=False, if_exists='append')
         conn.close()
