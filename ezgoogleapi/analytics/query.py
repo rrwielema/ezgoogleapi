@@ -40,11 +40,12 @@ class Query:
         self.results = []
         self.clean_up_func = clean_up
 
-    def run_query(self, per_day=True, sampling='fail', clean_headers=False):
+    def run_query(self, per_day=True, sampling='fail', clean_headers=False, logging=True):
         '''
         Execute API requests for given body and given date range. Saves result to Query.results,
         which can be exported to csv, dataframe and sqlite.
 
+        :param logging: Enable or disble prints
         :param clean_headers: [optional] Specify whether to use the Google Ananlytics variable name e.g. Device
             Category or the API code ga:deviceCategory
         :param per_day: Default True.
@@ -59,6 +60,8 @@ class Query:
                 body = self.body.body
                 body['reportRequests'][0]['dateRanges'] = [{'startDate': date, 'endDate': date}]
                 result = get_report(json.dumps(body), self.analytics, self.resource_quota, sampling)
+                if logging:
+                    print(f'Result for date {date} contains {len(result)} rows')
                 if clean_headers:
                     result.columns = self.name_client.get_names(list(result.columns), return_type='name')
                 if self.clean_up_func:

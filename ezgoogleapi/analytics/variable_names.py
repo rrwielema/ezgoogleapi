@@ -89,7 +89,6 @@ class NameDatabase:
         r = request.urlopen('https://rrwielema.github.io/page/apis/ga_vars.json')
         ga_vars = json.loads(r.read())['data']
         df = pd.DataFrame(ga_vars)
-        print(DIR)
         conn = db.connect(f'{DIR}\\google_api_variable_names.db')
 
         df.to_sql('vars', conn, index=False, if_exists='replace')
