@@ -106,3 +106,11 @@ def weeks(week: Union[int, tuple, list], year: int, first_day: str = 'mon') -> l
         date_range[1] = YESTERDAY[0]
 
     return date_range
+
+
+def combine_ranges(*ranges):
+    new_range = list(set(sum(ranges)))
+    start = min(new_range)
+    end = max(new_range)
+    return [start, end]
+

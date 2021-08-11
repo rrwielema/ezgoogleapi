@@ -1,9 +1,10 @@
 import json
 import pathlib
 import string
+import time
 from datetime import datetime, timedelta
 from functools import lru_cache
-from typing import Any, List
+from typing import Any, List, Callable
 import sqlite3 as db
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -23,7 +24,7 @@ def initialize_analyticsreporting(keyfile) -> Any:
 
 
 class Query:
-    def __init__(self, body, keyfile: str):
+    def __init__(self, body, keyfile: str, clean_up: Callable = None):
         '''
         Class to run queries for a given Body object.
 
@@ -37,12 +38,15 @@ class Query:
         self.name_client = VariableName()
         self.sampling_report = []
         self.results = []
+        self.clean_up_func = clean_up
 
-    def run_query(self, per_day=True, sampling='fail'):
+    def run_query(self, per_day=True, sampling='fail', clean_headers=False):
         '''
         Execute API requests for given body and given date range. Saves result to Query.results,
         which can be exported to csv, dataframe and sqlite.
 
+        :param clean_headers: [optional] Specify whether to use the Google Ananlytics variable name e.g. Device
+            Category or the API code ga:deviceCategory
         :param per_day: Default True.
             Execute queries per day. Reduces chance of sampling.
         :param sampling: Default 'fail'.
@@ -55,11 +59,15 @@ class Query:
                 body = self.body.body
                 body['reportRequests'][0]['dateRanges'] = [{'startDate': date, 'endDate': date}]
                 result = get_report(json.dumps(body), self.analytics, self.resource_quota, sampling)
+                if clean_headers:
+                    result.columns = self.name_client.get_names(list(result.columns), return_type='name')
+                if self.clean_up_func:
+                    result = self.clean_up_func(result)
                 self.results.append(result)
                 conn = db.connect('partial_results.db')
-                df = pd.concat(self.results)
-                df.to_sql('results', con=conn, index=False, if_exists='append')
+                result.to_sql('results', con=conn, index=False, if_exists='append')
                 conn.close()
+                time.sleep(0.5)
             os.remove('partial_results.db')
 
         else:
@@ -67,6 +75,10 @@ class Query:
             body['reportRequests'][0]['dateRanges'] = [
                 {'startDate': self.body.date_range[0], 'endDate': self.body.date_range[1]}]
             result = get_report(body, self.analytics, self.resource_quota, sampling)
+            if clean_headers:
+                result.columns = self.name_client.get_names(list(result.columns), return_type='name')
+            if self.clean_up_func:
+                result = self.clean_up_func(result)
             self.results.append(result)
 
     def to_csv(self, path):
@@ -78,7 +90,7 @@ class Query:
 
         >> Query.to_csv('example.csv')
 
-        >> Query.to_csv('C:\\Users\\someusr\\Documents\\example.csv')
+        >> Query.to_csv('C:/Users/someusr/Documents/example.csv')
         '''
         if not os.path.isabs(path):
             path = BASE_DIR + '\\' + path
@@ -134,7 +146,7 @@ class Query:
 
         df.columns = clean_cols
 
-        df.to_sql(table_name, con=conn, index=False, if_exists='replace')
+        df.to_sql(table_name, conn, index=False, if_exists='replace')
         conn.close()
         print(f'New SQLite DB created with path {BASE_DIR}\\Query results\\{db_name}.db, using \'{table_name}\' as '
               f'the table name and {", ".join(clean_cols)} as columns.')
@@ -168,7 +180,7 @@ def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -
 
                 if 'SamplingReadCounts' in report_data.keys():
                     sample_size = int(body['samplesReadCounts'][0]) / int(body['samplingSpaceSizes'][0])
-                    if resource_quota and not 'useResourceQuotas' in list(body.keys()):
+                    if resource_quota and 'useResourceQuotas' not in list(body.keys()):
                         body['useResourceQuotas'] = True
                         return get_report(json.dumps(body), analytics, resource_quota, sampling)
                     elif sampling == 'save':
@@ -179,7 +191,7 @@ def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -
                     elif sampling == 'fail':
                         if os.path.exists(DIR + '\\partial_results.db'):
                             conn = db.connect(DIR + '\\partial_results.db')
-                            df = pd.read_sql('SELECT * FROM results')
+                            df = pd.read_sql('SELECT * FROM results', conn)
                             df.to_csv(BASE_DIR + '\\partial_results.csv', index=False)
                             conn.close()
                             os.remove('partial_results.db')

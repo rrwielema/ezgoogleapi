@@ -54,6 +54,10 @@ def get_date_range(self):
         except KeyError:
             raise KeyError('The "start" key is specified, but the there is no "end" key. '
                            'Either omit "start" and use the "date_range" option, or add an "end" key')
+    elif 'end' in self.report.keys():
+        if 'date_range' not in self.report.keys():
+            raise KeyError('The "end" key is specified, but the there is no "start" key. '
+                           'Either omit "end" and use the "date_range" option, or add a "start" key')
     elif 'date_range' in self.report.keys():
         return self.report["date_range"]
 

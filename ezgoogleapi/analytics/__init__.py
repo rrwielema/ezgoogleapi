@@ -8,6 +8,7 @@ from ezgoogleapi.analytics.daterange import (TODAY,
                                              LAST_90_DAYS,
                                              LAST_YEAR,
                                              CURRENT_QUARTER,
+                                             THIS_YEAR,
                                              LAST_QUARTER,
                                              quarter,
                                              weeks)
