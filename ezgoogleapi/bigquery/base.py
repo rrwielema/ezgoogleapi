@@ -1,5 +1,7 @@
 import json
 import warnings
+from typing import Union
+
 import pandas as pd
 from google.cloud import bigquery
 import os
@@ -95,9 +97,15 @@ class BigQuery:
         else:
             print(f"Error bij toevoegen van rijen: {errors}")
 
-    def read_table(self, columns=None, condition=None, return_format='df'):
+    def read_table(self, columns: Union[list, str] = None, condition=None, return_format='df'):
         if columns:
-            query = f'SELECT {", ".join(columns)} FROM {self.table}'
+            if type(columns) == list:
+                query = f'SELECT {", ".join(columns)} FROM {self.table}'
+            elif type(columns) == str:
+                query = f'SELECT {columns} FROM {self.table}'
+            else:
+                raise ValueError(f'Incorrect data type \'{type(columns)}\' for parameter \'columns\'. Supply either '
+                                 f'\'str\' or \'list\'')
         else:
             query = f'SELECT * FROM {self.table}'
 

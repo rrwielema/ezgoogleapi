@@ -1,23 +1,27 @@
 import warnings
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from typing import Union
 
 '''
 Module to create dynamic date ranges for Google Analytys queries. 
 '''
 
+def c(dates):
+    return [dates[0].replace(hour=0, minute=0, second=0, microsecond=0),
+            dates[1].replace(hour=0, minute=0, second=0, microsecond=0)]
+
 
 TODAY = datetime.now()
-YESTERDAY = [TODAY - timedelta(days=1), TODAY - timedelta(days=1)]
-LAST_WEEK = [TODAY - timedelta(days=TODAY.weekday(), weeks=1),
-             TODAY - timedelta(days=TODAY.weekday(), weeks=1) + timedelta(days=6)]
-LAST_7_DAYS = [YESTERDAY[0] - timedelta(days=7), YESTERDAY[0]]
-THIS_MONTH = [TODAY.replace(day=1), YESTERDAY[0]]
-LAST_MONTH = [(TODAY.replace(day=1) - timedelta(days=1)).replace(day=1),
-              TODAY.replace(day=1) - timedelta(days=1)]
-LAST_90_DAYS = [TODAY - timedelta(days=91), YESTERDAY[0]]
-LAST_YEAR = [datetime(TODAY.year - 1, 1, 1), datetime(TODAY.year - 1, 12, 31)]
-THIS_YEAR = [datetime(TODAY.year, 1, 1), YESTERDAY[0]]
+YESTERDAY = c([TODAY - timedelta(days=1), TODAY - timedelta(days=1)])
+LAST_WEEK = c([TODAY - timedelta(days=TODAY.weekday(), weeks=1),
+             TODAY - timedelta(days=TODAY.weekday(), weeks=1) + timedelta(days=6)])
+LAST_7_DAYS = c([YESTERDAY[0] - timedelta(days=7), YESTERDAY[0]])
+THIS_MONTH = c([TODAY.replace(day=1), YESTERDAY[0]])
+LAST_MONTH = c([(TODAY.replace(day=1) - timedelta(days=1)).replace(day=1),
+              TODAY.replace(day=1) - timedelta(days=1)])
+LAST_90_DAYS = c([TODAY - timedelta(days=91), YESTERDAY[0]])
+LAST_YEAR = c([datetime(TODAY.year - 1, 1, 1), datetime(TODAY.year - 1, 12, 31)])
+THIS_YEAR = c([datetime(TODAY.year, 1, 1), YESTERDAY[0]])
 
 
 def quarter(q_num: int, year: int) -> list:
@@ -65,8 +69,8 @@ def quarter(q_num: int, year: int) -> list:
     return q
 
 
-LAST_QUARTER = quarter(-1, TODAY.year)
-CURRENT_QUARTER = quarter(0, TODAY.year)
+LAST_QUARTER = c(quarter(-1, TODAY.year))
+CURRENT_QUARTER = c(quarter(0, TODAY.year))
 
 
 def weeks(week: Union[int, tuple, list], year: int, first_day: str = 'mon') -> list:
@@ -98,19 +102,22 @@ def weeks(week: Union[int, tuple, list], year: int, first_day: str = 'mon') -> l
 
     if date_range[0] > TODAY and date_range[1] > TODAY:
         raise UserWarning(
-            f'Weeks {week[0]} and {week[1]} of {year} are in the future and will not yield any '
+            f'Week given date range is in the future and will not yield any '
             f'results in Google Analytics.')
     elif date_range[1] > TODAY:
         warnings.warn(f'Week {week[1]} is (partially) in the future. The end date will be set to yesterday.',
                       UserWarning)
         date_range[1] = YESTERDAY[0]
 
-    return date_range
+    return c(date_range)
 
 
 def combine_ranges(*ranges):
-    new_range = list(set(sum(ranges)))
+    new_range = list(set(item for sublist in ranges for item in sublist))
     start = min(new_range)
     end = max(new_range)
-    return [start, end]
+    return c([start, end])
+
+
+
 
