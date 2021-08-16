@@ -1,7 +1,7 @@
 import json
+import math
 import warnings
 from typing import Union
-
 import pandas as pd
 from google.cloud import bigquery
 import os
@@ -11,10 +11,9 @@ BASE_DIR = os.getcwd()
 
 
 class BigQuery:
-    def __init__(self, keyfile):
+    def __init__(self, keyfile: str):
         if not os.path.isabs(keyfile):
             keyfile = BASE_DIR + '\\' + keyfile
-        print(keyfile)
         self.keyfile = check_keyfile(keyfile)
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = keyfile
         self.client = bigquery.Client()
@@ -29,7 +28,7 @@ class BigQuery:
             self.table = table
             self.table_name = table.split('.')[2]
 
-    def create_table(self, schema):
+    def create_table(self, schema: list):
         sch = []
         for field in schema:
             if type(field) == list:
@@ -39,10 +38,9 @@ class BigQuery:
 
         new_table = bigquery.Table(self.table, schema=sch)
         new_table = self.client.create_table(new_table)
-        print(new_table)
         print(f'Created table {self.table_name}')
 
-    def delete_table(self, sure=False):
+    def delete_table(self, sure: bool = False):
         check_table(self.table)
         if not sure:
             raise UserWarning(
@@ -51,7 +49,7 @@ class BigQuery:
         else:
             self.client.delete_table(self.table, not_found_ok=True)
 
-    def delete_rows(self, condition=None, sure=False):
+    def delete_rows(self, condition: str = None, sure: bool = False):
         check_table(self.table)
         if not condition and not sure:
             raise UserWarning(f'Running delete_records() without a condition deletes every row in '
@@ -68,9 +66,12 @@ class BigQuery:
             query += condition
 
         query_job = self.client.query(query)
-        print(query_job.__dict__)
+        print(query_job)
 
-    def insert_rows(self, data):
+    def insert_rows(self, data: Union[list, dict, pd.DataFrame], per_request: int = 50000):
+        if per_request > 50000 or per_request < 0 or type(per_request) != int:
+            warnings.warn('Invalid entry. The per_request parameter is between 0 and 50000.', UserWarning)
+
         check_table(self.table)
         if type(data) != pd.DataFrame:
             if type(data[0]) == dict:
@@ -91,11 +92,17 @@ class BigQuery:
             df = data
 
         to_write = df.to_dict('records')
-        errors = self.client.insert_rows_json(self.table, to_write)
-        if not errors:
-            print(f"{len(to_write)} rows added to table {self.table_name}")
-        else:
-            print(f"Error bij toevoegen van rijen: {errors}")
+        for x in range(0, math.ceil(len(to_write) / per_request)):
+            if x == math.ceil(len(to_write) / per_request) - 1:
+                insert = to_write[0 + (x * per_request):-1]
+            else:
+                insert = to_write[0 + (x * per_request): per_request + (x * per_request)]
+
+            errors = self.client.insert_rows_json(self.table, insert)
+            if not errors:
+                print(f"{len(insert)} rows added to table {self.table_name}")
+            else:
+                print(f"Error: {errors}")
 
     def read_table(self, columns: Union[list, str] = None, condition=None, return_format='df'):
         if columns:
