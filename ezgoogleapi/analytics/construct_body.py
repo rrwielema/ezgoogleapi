@@ -150,7 +150,10 @@ def add_filters(body_obj):
                 elif 'ga:metric' in name:
                     type_ = 'Metric'
                 else:
-                    type_ = body_obj.name_client.get_names(name.strip())[0]['type']
+                    names = body_obj.name_client.get_names(name.strip())[0]
+                    type_ = names['type']
+                    name = names['apicode']
+
                 op = expressions[type_][op]
 
                 if 'NOT' in op:
@@ -160,9 +163,9 @@ def add_filters(body_obj):
                     NOT = False
 
                 if type_ == 'Dimension':
-                    dimension_filters.append([splitted[0], op, NOT, exp])
+                    dimension_filters.append([name, op, NOT, exp])
                 else:
-                    metric_filters.append([splitted[0], op, NOT, exp])
+                    metric_filters.append([name, op, NOT, exp])
                 found = True
                 break
 

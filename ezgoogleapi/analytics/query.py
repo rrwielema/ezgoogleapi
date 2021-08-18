@@ -40,7 +40,7 @@ class Query:
         self.results = []
         self.clean_up_func = clean_up
 
-    def run_query(self, per_day=True, sampling='fail', clean_headers=False, logging=True):
+    def run(self, per_day=True, sampling='fail', clean_headers=False, logging=True):
         '''
         Execute API requests for given body and given date range. Saves result to Query.results,
         which can be exported to csv, dataframe and sqlite.

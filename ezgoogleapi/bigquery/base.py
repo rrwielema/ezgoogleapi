@@ -68,9 +68,9 @@ class BigQuery:
         query_job = self.client.query(query)
         print(query_job)
 
-    def insert_rows(self, data: Union[list, dict, pd.DataFrame], per_request: int = 50000):
-        if per_request > 50000 or per_request < 0 or type(per_request) != int:
-            warnings.warn('Invalid entry. The per_request parameter is between 0 and 50000.', UserWarning)
+    def insert_rows(self, data: Union[list, dict, pd.DataFrame], per_request: int = 10000):
+        if per_request > 10000 or per_request < 0 or type(per_request) != int:
+            warnings.warn('Invalid entry. The per_request parameter is between 0 and 10000.', UserWarning)
 
         check_table(self.table)
         if type(data) != pd.DataFrame:
