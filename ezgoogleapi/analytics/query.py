@@ -167,7 +167,7 @@ class Query:
 def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -> pd.DataFrame:
     page_token = True
     body = json.loads(body)
-
+    date = body['reportRequests'][0]['dateRanges'][0]['startDate']
     results = []
     while page_token:
         response = analytics.reports().batchGet(body=body).execute()
@@ -193,7 +193,6 @@ def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -
                         return get_report(json.dumps(body), analytics, resource_quota, sampling)
                     elif sampling == 'save':
                         df_sub['Sampling'] = sample_size
-                        date = body['reportRequests'][0]['dateRanges'][0]['startDate']
                         percentage = round(sample_size * 100, 1)
                         print(f'{date} contains sampled data: {percentage}%')
                     elif sampling == 'fail':
@@ -210,6 +209,8 @@ def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -
                     else:
                         """skip"""
                         results.append(pd.DataFrame())
+                        print(f'{date} contains sampled data and will not be available in the results')
+                        continue
 
                 results.append(df_sub)
 
@@ -219,7 +220,8 @@ def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -
                 else:
                     page_token = False
 
-    return pd.concat(results)
+    df = pd.concat(results)
+    print(f'{len(df)} rows found for date {date}')
 
 
 def calc_range(start, end) -> List[str]:
