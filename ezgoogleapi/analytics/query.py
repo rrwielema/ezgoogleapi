@@ -220,8 +220,7 @@ def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -
                 else:
                     page_token = False
 
-    df = pd.concat(results)
-    print(f'{len(df)} rows found for date {date}')
+    return pd.concat(results)
 
 
 def calc_range(start, end) -> List[str]:
