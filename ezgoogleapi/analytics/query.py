@@ -165,9 +165,10 @@ class Query:
 
 @lru_cache
 def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -> pd.DataFrame:
-    results = []
     page_token = True
     body = json.loads(body)
+
+    results = []
     while page_token:
         response = analytics.reports().batchGet(body=body).execute()
         for k, v in response.items():
@@ -176,7 +177,11 @@ def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -
                 met_headers = [f['name'] for f in report['columnHeader']['metricHeader']['metricHeaderEntries']]
                 report_data = report['data']
 
-                rows = report_data['rows']
+                try:
+                    rows = report_data['rows']
+                except KeyError:
+                    results.append(pd.DataFrame())
+                    continue
                 data = [row['dimensions'] + row['metrics'][0]['values'] for row in rows]
                 headers = dim_headers + met_headers
                 df_sub = pd.DataFrame(data=data, columns=headers)
@@ -204,7 +209,7 @@ def get_report(body: str, analytics: Any, resource_quota: bool, sampling: str) -
                         raise SamplingError(sample_size, csv)
                     else:
                         """skip"""
-                        return pd.DataFrame()
+                        results.append(pd.DataFrame())
 
                 results.append(df_sub)
 
@@ -236,8 +241,8 @@ class SamplingError(Exception):
         csv_string = ''
         if csv:
             csv_string = f' and results untill now have been saved to {BASE_DIR + "/partial_results.csv"}'
-        self.message = f'Sampling detected in results ({self.percentage}%) and sampling is set to "fail"\n. ' \
+        self.message = f'Sampling detected in results ({self.percentage}%) and sampling is set to \'fail\'\n. ' \
                        f'Execution of queries is stopped{csv_string}. If you want to continue when sampling is ' \
-                       f'encountered, then use the option sampling="skip" to only save results without sampling or ' \
-                       f'sampling="save" to keep all the results.'
+                       f'encountered, then use the option sampling=\'skip\' to only save results without sampling or ' \
+                       f'sampling=\'save\' to keep all the results.'
         super().__init__(self.message)
