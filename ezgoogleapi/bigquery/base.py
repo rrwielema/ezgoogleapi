@@ -1,6 +1,7 @@
 import json
 import math
 import warnings
+from functools import lru_cache
 from typing import Union
 import pandas as pd
 from google.cloud import bigquery
@@ -58,7 +59,7 @@ class BigQuery:
         if condition:
             if not condition[0] == ' ':
                 condition = ' ' + condition
-            if not condition[:5] == ' WHERE':
+            if not condition[:6] == ' WHERE':
                 raise ValueError('Condition specified does not start with "WHERE".')
 
         query = f'DELETE FROM {self.table}'
@@ -104,6 +105,7 @@ class BigQuery:
             else:
                 print(f"Error: {errors}")
 
+    @lru_cache
     def read_table(self, columns: Union[list, str] = None, condition=None, return_format='df'):
         if columns:
             if type(columns) == list:
