@@ -24,6 +24,7 @@ class VariableName:
             NameDatabase.create_database()
         conn = db.connect(db_loc)
         self.all_names = pd.read_sql('SELECT * FROM vars', con=conn)
+
         conn.close()
 
         if len(self.all_names[self.all_names['type'] == 'Custom Dimension']) == 0 and \
@@ -62,11 +63,11 @@ class VariableName:
                     results.append({'name': f'Dimension {num}', 'type': 'dimension', 'apicode': name})
                     continue
 
-                df_name = self.all_names[self.all_names['apicode'] == name]
+                df_name = self.all_names[self.all_names['apicode'].apply(lambda x: x.lower()) == name.lower()]
                 if len(df_name) == 0:
                     raise ValueError(f'\'{name}\' is not a valid API code.')
             else:
-                df_name = self.all_names[self.all_names['name'] == name]
+                df_name = self.all_names[self.all_names['name'].apply(lambda x: x.lower()) == name.lower()]
                 if len(df_name) == 0:
                     raise ValueError(f'\'{name}\' is not a valid variable name.')
 
