@@ -1,5 +1,5 @@
 import warnings
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from typing import Union
 
 '''
@@ -66,11 +66,32 @@ def quarter(q_num: int, year: int) -> list:
         warnings.warn(f'Q{q_num} of {year} is the current quarter. Date range will end yesterday.')
         q[1] = YESTERDAY[0]
 
-    return q
+    return c(q)
 
 
-LAST_QUARTER = c(quarter(-1, TODAY.year))
-CURRENT_QUARTER = c(quarter(0, TODAY.year))
+LAST_QUARTER = quarter(-1, TODAY.year)
+CURRENT_QUARTER = quarter(0, TODAY.year)
+
+
+def last_weeks(week_amount: int, full_week: bool = True, first_day: str = 'mon') -> list:
+    days_calc = {'tue': 1, 'wed': 2, 'thu': 3, 'fri': -3, 'sat': -2, 'sun': -1, 'mon': 0}
+    try:
+        shift_day = timedelta(days=days_calc[first_day])
+    except KeyError:
+        raise ValueError(f'{first_day} is not a valid option for the first_day parameter.')
+
+    if not full_week:
+        first_day_in_range = datetime.now() - timedelta(weeks=week_amount)
+        last_day_in_range = datetime.now() - timedelta(days=1)
+    else:
+        first_day_in_range = datetime.now() - timedelta(days=datetime.now().weekday()) - timedelta(weeks=week_amount + 1) + shift_day
+        last_day_in_range = datetime.now() - timedelta(days=datetime.now().weekday()) - timedelta(days=1) + shift_day
+
+    return c([first_day_in_range, last_day_in_range])
+
+
+def last_days(day_amount: int) -> list:
+    return c([YESTERDAY[0] - timedelta(days=day_amount + 1), YESTERDAY[0]])
 
 
 def weeks(week: Union[int, tuple, list], year: int, first_day: str = 'mon') -> list:
@@ -90,10 +111,9 @@ def weeks(week: Union[int, tuple, list], year: int, first_day: str = 'mon') -> l
     first_day_of_year = datetime(year, 1, 1)
     first_day_of_week = first_day_of_year + timedelta(weeks=week[0]) - timedelta(days=first_day_of_year.weekday())
 
-    days_calc = {'tue': 1, 'wed': 2, 'thu': 3, 'fri': -3, 'sat': -2, 'sun': -1}
+    days_calc = {'tue': 1, 'wed': 2, 'thu': 3, 'fri': -3, 'sat': -2, 'sun': -1, 'mon': 0}
 
-    if first_day != 'mon':
-        first_day_of_week = first_day_of_week + timedelta(days=days_calc[first_day])
+    first_day_of_week = first_day_of_week + timedelta(days=days_calc[first_day])
 
     week_diff = week[1] - week[0]
     last_day_of_week = first_day_of_week + timedelta(weeks=week_diff, days=6)
