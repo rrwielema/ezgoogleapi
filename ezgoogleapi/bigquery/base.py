@@ -1,11 +1,10 @@
-import json
 import math
 import warnings
-from functools import lru_cache
 from typing import Union
 import pandas as pd
 from google.cloud import bigquery
 import os
+from ezgoogleapi.common.validation import check_keyfile
 
 
 BASE_DIR = os.getcwd()
@@ -24,7 +23,7 @@ class BigQuery:
     def set_table(self, table):
         if not check_table_format(table):
             raise ValueError(f'{table} is not a valid BigQuery table name. It should follow the format '
-                             f'Project.Dataset.Table_name.')
+                             f'Project.Dataset.TableName.')
         else:
             self.table = table
             self.table_name = table.split('.')[2]
@@ -38,7 +37,7 @@ class BigQuery:
                 sch.append(bigquery.SchemaField(field, "STRING"))
 
         new_table = bigquery.Table(self.table, schema=sch)
-        new_table = self.client.create_table(new_table)
+        self.client.create_table(new_table)
         print(f'Created table {self.table_name}')
 
     def delete_table(self, sure: bool = False):
@@ -49,29 +48,28 @@ class BigQuery:
                 f'delete_table() function. There is no way to recover the table once it has been deleted.')
         else:
             self.client.delete_table(self.table, not_found_ok=True)
+            print(f'Table {self.table} was deleted')
 
     def delete_rows(self, condition: str = None, sure: bool = False):
         check_table(self.table)
         if not condition and not sure:
             raise UserWarning(f'Running delete_records() without a condition deletes every row in '
                               f'table {self.table_name}. If you are sure you want this, pass the sure=True parameter. '
-                              f'Otherwise, provide a condition containing "WHERE".')
-        if condition:
-            if not condition[0] == ' ':
-                condition = ' ' + condition
-            if not condition[:6] == ' WHERE':
-                raise ValueError('Condition specified does not start with "WHERE".')
+                              f'Otherwise, provide a condition.')
 
         query = f'DELETE FROM {self.table}'
         if condition:
-            query += condition
+            query += ' WHERE ' + condition
 
         query_job = self.client.query(query)
-        print(query_job)
+        if not query_job:
+            print('Rows deleted')
 
     def insert_rows(self, data: Union[list, dict, pd.DataFrame], per_request: int = 10000):
         if per_request > 10000 or per_request < 0 or type(per_request) != int:
-            warnings.warn('Invalid entry. The per_request parameter is between 0 and 10000.', UserWarning)
+            warnings.warn('Invalid entry. The per_request parameter is between 0 and 10000. Value will be set to 10000',
+                          UserWarning)
+            per_request = 10000
 
         check_table(self.table)
         if type(data) != pd.DataFrame:
@@ -95,7 +93,7 @@ class BigQuery:
         to_write = df.to_dict('records')
         for x in range(0, math.ceil(len(to_write) / per_request)):
             if x == math.ceil(len(to_write) / per_request) - 1:
-                insert = to_write[0 + (x * per_request):-1]
+                insert = to_write[0 + (x * per_request):]
             else:
                 insert = to_write[0 + (x * per_request): per_request + (x * per_request)]
 
@@ -105,8 +103,8 @@ class BigQuery:
             else:
                 print(f"Error: {errors}")
 
-    @lru_cache
     def read_table(self, columns: Union[list, str] = None, condition=None, return_format='df'):
+        check_table(self.table)
         if columns:
             if type(columns) == list:
                 query = f'SELECT {", ".join(columns)} FROM {self.table}'
@@ -119,11 +117,7 @@ class BigQuery:
             query = f'SELECT * FROM {self.table}'
 
         if condition:
-            if not condition[0] == ' ':
-                condition = ' ' + condition
-            if not condition[:5] == ' WHERE':
-                raise ValueError('Condition specified does not start with "WHERE".')
-            query = query + condition
+            query += ' WHERE ' + condition
 
         query_job = self.client.query(query)
 
@@ -150,26 +144,6 @@ class BigQuery:
             )
 
 
-def check_keyfile(keyfile):
-    if '.json' not in keyfile:
-        raise IOError('Keyfile needs to be in .json format. Read more about the keyfile: '
-                      'https://developers.google.com/identity/protocols/oauth2')
-    try:
-        file = open(keyfile, 'r')
-    except FileNotFoundError:
-        raise FileNotFoundError('Keyfile not found. Make sure it is located in the working directory and use only '
-                                '"file_name.json" to specify.')
-
-    headers = json.loads(file.read())
-    mandatory_headers = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email', 'client_id', 'auth_uri', 'token_uri']
-    missing = [header for header in mandatory_headers if header not in headers]
-    if len(missing) > 0:
-        raise KeyError(f'{keyfile} is not a valid keyfile as it misses at least 1 mandatory headers: {", ".join(missing)}. '
-                       f'Make sure to provide a keyfile containing: {", ".join(mandatory_headers)}')
-    else:
-        return keyfile
-
-
 def check_table_format(table):
     return len(table.split('.')) == 3
 
@@ -177,6 +151,6 @@ def check_table_format(table):
 def check_table(table):
     if not table:
         raise UserWarning(
-            'No table was specified via the BigQuery.set_table("table") method.'
+            'No table was specified via the BigQuery.set_table("Project.database.table") method.'
         )
 

@@ -1,3 +1,11 @@
+# test files
+test.py
+BACKLOG.txt
+
+# in progress
+ezgoogleapi/analytics/clean_up_helper.py
+ezgoogleapi/analytics/segment_builder.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -61,6 +69,7 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+*.db
 
 # Flask stuff:
 instance/
@@ -128,6 +137,7 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+*.json
 
 # Pyre type checker
 .pyre/

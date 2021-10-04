@@ -256,7 +256,7 @@ class Body:
             return BodyObject(f)
 
     @staticmethod
-    def from_dict(dictionary):
+    def from_dict(dictionary: dict) -> BodyObject:
         '''
         Load body settings from a dictionary.
 

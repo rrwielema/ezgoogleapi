@@ -50,7 +50,7 @@ class VariableName:
         results = []
         for name in names:
             if 'ga:' in name:
-                if name == 'ga:segment':
+                if name == 'ga:segment' or name == 'Segment':
                     results.append({'name': 'Segment', 'type': 'dimension', 'apicode': name})
                     continue
                 if 'ga:metric' in name and not self.cd_cm:

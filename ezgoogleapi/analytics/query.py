@@ -11,6 +11,7 @@ from googleapiclient.discovery import build
 import pandas as pd
 import os
 from ezgoogleapi.analytics.variable_names import VariableName
+from ezgoogleapi.common.exceptions import SamplingError
 
 BASE_DIR = os.getcwd()
 DIR = str(pathlib.Path(__file__).parent)
@@ -22,7 +23,7 @@ def initialize_analyticsreporting(keyfile) -> Any:
     analytics = build('analyticsreporting', 'v4', credentials=credentials)
     return analytics
 
-
+# TODO: socket timeout op requests afvangen
 class Query:
     def __init__(self, body, keyfile: str, clean_up: Callable = None):
         '''
@@ -67,8 +68,13 @@ class Query:
                 if self.clean_up_func:
                     result = self.clean_up_func(result)
                 self.results.append(result)
-                conn = db.connect('partial_results.db')
-                result.to_sql('results', con=conn, index=False, if_exists='append')
+                with db.connect('partial_results.db') as conn:
+                    try:
+                        result.to_sql('results', con=conn, index=False, if_exists='append')
+                    except db.OperationalError:
+                        pass
+                        # TODO: toevoegen error handling
+
                 conn.close()
                 time.sleep(0.5)
             os.remove('partial_results.db')
@@ -236,14 +242,4 @@ def calc_range(start, end) -> List[str]:
     return [datetime.strftime(end - timedelta(days=day), '%Y-%m-%d') for day in range(delta.days + 1)][::-1]
 
 
-class SamplingError(Exception):
-    def __init__(self, percentage, csv):
-        self.percentage = round(percentage * 100, 1)
-        csv_string = ''
-        if csv:
-            csv_string = f' and results untill now have been saved to {BASE_DIR + "/partial_results.csv"}'
-        self.message = f'Sampling detected in results ({self.percentage}%) and sampling is set to \'fail\'\n. ' \
-                       f'Execution of queries is stopped{csv_string}. If you want to continue when sampling is ' \
-                       f'encountered, then use the option sampling=\'skip\' to only save results without sampling or ' \
-                       f'sampling=\'save\' to keep all the results.'
-        super().__init__(self.message)
+
