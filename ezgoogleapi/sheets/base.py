@@ -20,12 +20,6 @@ def create_conn(keyfile):
     return service.spreadsheets()
 
 
-# TODO: separate results
-# TODO: query by filter (df.loc[])
-# TODO: new tab
-# TODO: dynamic columns based on ranges
-# columns = list(string.ascii_uppercase) + [c+d for c in string.ascii_uppercase for d in string.ascii_uppercase]
-
 class Sheet:
     def __init__(self, keyfile: str):
         self.service = create_conn(check_keyfile(keyfile))
@@ -72,7 +66,7 @@ class Sheet:
 
     @request_wrapper('sheets')
     def append(self, data: Union[list, pd.DataFrame], cell_range: str, tab: str = None,
-               per_request: int = 10000) -> dict:
+               per_request: int = 10000) -> None:
         cell_range = check_range(cell_range, tab, self.sheet_id)
 
         if isinstance(data, pd.DataFrame):
@@ -84,11 +78,12 @@ class Sheet:
             raise TypeError(f'Type {type(data)} is not supported for writing to Google Sheets. \n'
                             f'Use lists or pandas DataFrame to append rows.')
 
+        written = 0
         for x in range(0, math.ceil(len(data) / per_request)):
             if x == math.ceil(len(data) / per_request) - 1:
-                data = data[0 + (x * per_request):]
+                to_write = data[0 + (x * per_request):]
             else:
-                data = data[0 + (x * per_request): per_request + (x * per_request)]
+                to_write = data[0 + (x * per_request): per_request + (x * per_request)]
 
             response = self.service.values().append(
                 spreadsheetId=self.sheet_id,
@@ -96,11 +91,12 @@ class Sheet:
                 range=cell_range,
                 body=dict(
                     majorDimension='ROWS',
-                    values=data
+                    values=to_write
                 )
             ).execute()
 
-            return response
+            written += response['updatedRows']
+            print(f'Rows appended: {written} / {len(to_write)}')
 
     @request_wrapper('sheets')
     def clear(self, cell_range: Union[str, list], tab: str = None) -> dict:
@@ -128,13 +124,4 @@ class Sheet:
         return spreadsheet['spreadsheetId']
 
 
-if __name__ == '__main__':
-    k = r'C:\Users\p290157\PycharmProjects\ezgoogleapi\gold-totem-285615-7a83b4a2d2e8.json'
 
-    sheet = Sheet(k)
-    SHEET_ID = '1ujWe0uAHPESFUA3qoi_LvJzrwJUhHXnqmqUdZWYvd8c'
-    RANGE = 'A1:G15'
-    sheet.set_sheet_id(SHEET_ID)
-    # print(sheet.append(['a' for a in range(7)], RANGE, tab='Sheet1'))
-    a = sheet.read(RANGE, tab='Sheet1', header_range='A1:G1')
-    print('yeet')
