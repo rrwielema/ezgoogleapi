@@ -1,7 +1,10 @@
 import json
 from datetime import datetime
 import warnings
+from typing import Union
+
 from ezgoogleapi.analytics.variable_names import VariableName
+from ezgoogleapi.common.validation import validate_json_file
 from itertools import count
 
 mandatory = ['view_id', 'dimensions', 'metrics', 'start', 'end', 'date_range']
@@ -24,29 +27,40 @@ expressions = {
 }
 
 
-class BodyObject:
+class Body:
+    """Class to """
     _ids = count(0)
 
-    def __init__(self, report):
+    def __init__(self, report: Union[dict, str]):
+        if type(report) == str:
+            report = validate_json_file(report)
+            with open(report, 'r') as f:
+                report = json.load(f)
+        elif type(report) == dict:
+            pass
+        else:
+            raise ValueError(f'{type(report)} is not a valid type for the report parameter. Use a dictionary or a '
+                             f'string representing the path to a JSON file.')
+
         self.id = next(self._ids)
         self.input_fields = list(report.keys())
-        check_mandatory(self.input_fields)
+        _check_mandatory(self.input_fields)
         self.report = report
         self.view_id = report['view_id']
         self.name_client = VariableName()
         self.dimensions = self.name_client.get_names(report['dimensions'], return_type='apicode')
         self.metrics = self.name_client.get_names(report['metrics'], return_type='apicode')
-        self.date_range = get_date_range(self)
+        self.date_range = _get_date_range(self)
         self.resource_quota = False
         self.name = None
         self.body = None
-        construct_body(self)
+        _construct_body(self)
 
     def __repr__(self):
         return f'{self.name}'
 
 
-def get_date_range(body_obj):
+def _get_date_range(body_obj: Body):
     if 'start' in body_obj.report.keys():
         start = body_obj.report['start']
         try:
@@ -62,7 +76,7 @@ def get_date_range(body_obj):
         return body_obj.report["date_range"]
 
 
-def construct_body(body_obj):
+def _construct_body(body_obj):
     metrics = [{'expression': met} for met in body_obj.metrics]
     dimensions = [{'name': dim} for dim in body_obj.dimensions]
     body_obj.body = {
@@ -77,12 +91,12 @@ def construct_body(body_obj):
     }
 
     fields = {
-        'query_name': add_name,
-        'segments': add_segments,
-        'filters': add_filters,
-        'order_by': add_ordering,
-        'page_size': add_page_size,
-        'resource_quota': add_resource_quota
+        'query_name': _add_name,
+        'segments': _add_segments,
+        'filters': _add_filters,
+        'order_by': _add_ordering,
+        'page_size': _add_page_size,
+        'resource_quota': _add_resource_quota
     }
 
     added_fields = [field for field in body_obj.input_fields if field not in mandatory and field in fields]
@@ -94,18 +108,18 @@ def construct_body(body_obj):
         body_obj.name = 'Query ' + str(body_obj.id)
 
 
-def add_name(body_obj):
+def _add_name(body_obj):
     body_obj.name = body_obj.report['query_name']
 
 
-def add_segments(body_obj):
+def _add_segments(body_obj):
     body_obj.body['reportRequests'][0]['dimensions'].append({'name': 'ga:segment'})
     body_obj.body['reportRequests'][0]['segments'] = []
     for f in body_obj.report['segments']:
         body_obj.body['reportRequests'][0]['segments'].append({'segmentId': f})
 
 
-def add_filters(body_obj):
+def _add_filters(body_obj):
     def single_filter(filter_list, val_type):
         if val_type == 'd':
             r_filter = {
@@ -190,7 +204,7 @@ def add_filters(body_obj):
         body_obj.body['reportRequests'][0]['metricFilterClauses'] = met_filters
 
 
-def add_ordering(body_obj):
+def _add_ordering(body_obj):
     body_obj.body['reportRequests'][0]['orderBys'] = []
     for var in body_obj.report['order_by']:
         sort_order = 'DESCENDING'
@@ -204,7 +218,7 @@ def add_ordering(body_obj):
         })
 
 
-def add_page_size(body_obj):
+def _add_page_size(body_obj):
     if body_obj.report['page_size'] > 100000:
         warnings.warn('Page size too large, must be <= 100.000. Setting page size for query to 100.000', UserWarning)
         body_obj.body['reportRequests'][0]['pageSize'] = 100000
@@ -214,11 +228,11 @@ def add_page_size(body_obj):
         body_obj.body['reportRequests'][0]['pageSize'] = body_obj.report['page_size']
 
 
-def add_resource_quota(body_obj):
+def _add_resource_quota(body_obj):
     body_obj.resource_quota = True
 
 
-def check_mandatory(input_fields):
+def _check_mandatory(input_fields):
     missing_keys = [field for field in mandatory if field not in input_fields]
     if missing_keys == ['start', 'end'] or missing_keys == ['date_range']:
         return
@@ -233,37 +247,8 @@ def check_mandatory(input_fields):
                           f'*Start and end can be omitted when using the date_range option.')
 
 
-def to_query_date(date):
+def _to_query_date(date):
     if type(date) == 'str':
         return datetime.strptime(date, '%Y-%m-%d')
     else:
         return datetime.strftime(date, '%Y-%m-%d')
-
-
-class Body:
-    @staticmethod
-    def from_json(file: str) -> BodyObject:
-        '''
-        Load body settings from a JSON file.
-
-        :param file: Path to file relative to working directory
-        :return: BodyObject
-        '''
-        if '.json' not in file:
-            raise IOError(f'{file} is not a JSON file.')
-        with open(file, 'r') as f:
-            f = json.load(f)
-            return BodyObject(f)
-
-    @staticmethod
-    def from_dict(dictionary: dict) -> BodyObject:
-        '''
-        Load body settings from a dictionary.
-
-        :param dictionary: Body settings
-        :return: BodyObject
-        '''
-        return BodyObject(dictionary)
-
-
-Body = Body()

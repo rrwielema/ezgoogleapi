@@ -1,4 +1,4 @@
-from ezgoogleapi.analytics.construct_body import Body
+from ezgoogleapi.analytics.body import Body
 from ezgoogleapi.analytics.daterange import (TODAY,
                                              YESTERDAY,
                                              LAST_WEEK,

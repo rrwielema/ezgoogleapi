@@ -1,17 +1,16 @@
 from typing import Union
-
 import numpy as np
 from google.oauth2 import service_account
 import pandas as pd
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
-from ezgoogleapi.common.validation import check_keyfile, check_range, request_wrapper
+from ezgoogleapi.common.validation import check_keyfile, check_range, request_wrapper, validate_email, \
+    check_data_to_write
 import math
-
 from ezgoogleapi.sheets.ranges import _get_ranges, _get_columns
 
 
-def create_conn(keyfile):
+def create_conn_sheets(keyfile):
     creds = service_account.Credentials.from_service_account_file(
         keyfile, scopes=['https://www.googleapis.com/auth/spreadsheets'])
     creds.refresh(Request())
@@ -20,14 +19,34 @@ def create_conn(keyfile):
     return service.spreadsheets()
 
 
-class Sheet:
+def create_conn_drive(keyfile):
+    creds = service_account.Credentials.from_service_account_file(
+        keyfile, scopes=['https://www.googleapis.com/auth/drive'])
+    creds.refresh(Request())
+
+    service = build('drive', 'v3', credentials=creds)
+    return service
+
+
+class Permission:
+    def __init__(self, email, role, group=False):
+        self.emailAddress = validate_email(email)
+        if role not in ['writer', 'reader', 'owner']:
+            raise ValueError(f'{role} must be "owner", "reader" or "writer".')
+        self.role = role
+        self.type = 'user'
+        if group:
+            self.type = 'group'
+
+
+class SpreadSheet:
     def __init__(self, keyfile: str):
-        self.service = create_conn(check_keyfile(keyfile))
+        self.service = create_conn_sheets(check_keyfile(keyfile))
         self.sheet_id = None
+        self.keyfile = keyfile
 
     def set_sheet_id(self, sheet_id: str):
         self.sheet_id = sheet_id
-        print(f'{self.sheet_id} set as sheet ID')
 
     @request_wrapper('sheets')
     def read(self, cell_range: str, tab: str = None, return_format='df', header_range: str = None,
@@ -36,10 +55,10 @@ class Sheet:
         if header_range:
             header_range = check_range(header_range, tab, self.sheet_id)
             results = self.service.values().get(spreadsheetId=self.sheet_id,
-                                                     range=header_range).execute()
+                                                range=header_range).execute()
             headers = results['values'][0]
         results = self.service.values().get(spreadsheetId=self.sheet_id,
-                                                 range=cell_range).execute()
+                                            range=cell_range).execute()
 
         all_rows = results['values']
 
@@ -65,18 +84,15 @@ class Sheet:
             return pd.DataFrame(index=index, columns=headers, data=data)
 
     @request_wrapper('sheets')
-    def append(self, data: Union[list, pd.DataFrame], cell_range: str, tab: str = None,
+    def append(self, data: Union[list, pd.DataFrame], cell_range: str = None, tab: str = None,
                per_request: int = 10000) -> None:
-        cell_range = check_range(cell_range, tab, self.sheet_id)
+        data = check_data_to_write(data)
 
-        if isinstance(data, pd.DataFrame):
-            data = data.values.tolist()
-        elif type(data) == list:
-            if type(data[0]) != list:
-                data = [data]
+        if cell_range:
+            cell_range = check_range(cell_range, tab, self.sheet_id)
         else:
-            raise TypeError(f'Type {type(data)} is not supported for writing to Google Sheets. \n'
-                            f'Use lists or pandas DataFrame to append rows.')
+            range_ = _get_columns(width=len(data[0]))
+            cell_range = check_range(f'{range_[0]}:{range_[-1]}', tab, self.sheet_id)
 
         written = 0
         for x in range(0, math.ceil(len(data) / per_request)):
@@ -95,7 +111,7 @@ class Sheet:
                 )
             ).execute()
 
-            written += response['updatedRows']
+            written += response['updates']['updatedRows']
             print(f'Rows appended: {written} / {len(to_write)}')
 
     @request_wrapper('sheets')
@@ -104,24 +120,29 @@ class Sheet:
         response = self.service.values().clear(spreadsheetId=self.sheet_id, range=cell_range).execute()
         return response
 
-    def update(self):
-        pass
+    def add_permissions(self, permission):
+        drive = create_conn_drive(self.keyfile)
+        if type(permission) != list:
+            permission = [permission]
+        for p in permission:
+            if p.role == 'owner':
+                drive.permissions().create(fileId=self.sheet_id, body=p.__dict__, fields='id',
+                                           transferOwnership=True).execute()
+            else:
+                drive.permissions().create(fileId=self.sheet_id, body=p.__dict__, fields='id').execute()
+            print(f'Added {p.role} permissions for {self.sheet_id} to {p.emailAddress}')
 
-    def copy(self):
-        pass
-
-    def read_by_filter(self, cell_range, condition, tab=None):
-        pass
-
-    def create_sheet(self, title: str) -> str:
+    def create(self, title: str, permissions: Union[list[Permission], Permission] = None):
         config = {
             'properties': {
                 'title': title
             }
         }
         spreadsheet = self.service.create(body=config, fields='spreadsheetId').execute()
-        print(f'Spreadsheet created with name {title} and ID {spreadsheet["spreadsheetId"]}')
-        return spreadsheet['spreadsheetId']
+        self.sheet_id = spreadsheet['spreadsheetId']
+        print(
+            f'Spreadsheet created with name {title} and ID {self.sheet_id} - '
+            f'https://docs.google.com/spreadsheets/d/{self.sheet_id}')
 
-
-
+        if permissions:
+            self.add_permissions(permissions)

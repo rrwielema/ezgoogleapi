@@ -23,6 +23,7 @@ def initialize_analyticsreporting(keyfile) -> Any:
     analytics = build('analyticsreporting', 'v4', credentials=credentials)
     return analytics
 
+
 # TODO: socket timeout op requests afvangen
 class Query:
     def __init__(self, body, keyfile: str, clean_up: Callable = None):
@@ -108,11 +109,12 @@ class Query:
         df.to_csv(path, index=False)
         print(f'CSV created: {path}')
 
-    def to_sqlite(self, headers: list = None, db_name: str = None, table_name='results'):
+    def to_sqlite(self, headers: list = None, db_name: str = None, table_name='results', if_exists='append'):
         '''
         Save query results to a SQLite database. Headers containing Google Analytics API codes will be replaced by
         their regular variable name. Any special characters or spaces will be replaced by an underscore.
 
+        :param if_exists: [optional] Defaults to 'append'
         :param table_name: [optional] Defaults to 'results'
         :param headers: [optional] Specify custom headers for the columns.
         :param db_name: [optional] Specify a name for the database. If not specified, then the query name from the
@@ -123,7 +125,6 @@ class Query:
             os.mkdir(f'{BASE_DIR}\\Query results')
         if not db_name:
             db_name = self.body.name
-        conn = db.connect(f'{BASE_DIR}\\Query results\\' + db_name)
 
         df = pd.concat(self.results)
         if headers:
@@ -154,11 +155,10 @@ class Query:
                 clean_cols.append(col)
 
         df.columns = clean_cols
-
-        df.to_sql(table_name, conn, index=False, if_exists='replace')
-        conn.close()
-        print(f'New SQLite DB created with path {BASE_DIR}\\Query results\\{db_name}.db, using \'{table_name}\' as '
-              f'the table name and {", ".join(clean_cols)} as columns.')
+        with db.connect(f'{BASE_DIR}\\Query results\\' + db_name) as conn:
+            df.to_sql(table_name, conn, index=False, if_exists=if_exists)
+            print(f'Results saved to {BASE_DIR}\\Query results\\{db_name}.db, using \'{table_name}\' as '
+                  f'the table name and {", ".join(clean_cols)} as columns.')
 
     def to_dataframe(self) -> pd.DataFrame:
         '''
@@ -240,6 +240,3 @@ def calc_range(start, end) -> List[str]:
     if delta.days < 0:
         delta = start - end
     return [datetime.strftime(end - timedelta(days=day), '%Y-%m-%d') for day in range(delta.days + 1)][::-1]
-
-
-
